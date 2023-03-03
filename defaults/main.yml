@@ -1,0 +1,2 @@
+---
+deploy_from: "/home/shekhar/roles/apachetomcat/tests"

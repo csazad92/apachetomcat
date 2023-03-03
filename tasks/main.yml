@@ -1,0 +1,113 @@
+---
+- name: Configuring ApacheTomcat 
+  hosts: all
+  become: yes
+  tasks:
+    - name: system update
+      ansible.builtin.apt:
+        upgrade: yes
+        update_cache: yes
+
+    - name: Java Installation
+      ansible.builtin.apt:
+        name: default-jdk
+        state: present
+
+    - name: Ensure group "tomcat" exists
+      ansible.builtin.group:
+        name: tomcat
+        state: present
+
+    - name: Add the user tomcat
+      ansible.builtin.user:
+        name: tomcat
+        shell: /bin/false
+        groups: tomcat
+        home: /opt/tomcat
+        append: yes
+
+    - name: Checking url
+      ansible.builtin.uri:
+        url: https://dlcdn.apache.org/tomcat/tomcat-8/v8.5.86/bin/apache-tomcat-8.5.86.tar.gz
+
+    - name: directory for tomcat
+      ansible.builtin.file:
+        path: /opt/tomcat/tomcat
+        state: directory
+
+    - name: Unarchive download apache tomcat archive file
+      ansible.builtin.unarchive:
+        src: https://dlcdn.apache.org/tomcat/tomcat-8/v8.5.86/bin/apache-tomcat-8.5.86.tar.gz
+        dest: /opt/tomcat
+        remote_src: yes
+
+    - name: Move apache-tomcat-8.5.86 tomcat
+      ansible.builtin.shell:
+        cmd: sudo rm -rf /opt/tomcat/tomcat/*; sudo mv /opt/tomcat/apache-tomcat-8.5.86/* /opt/tomcat/tomcat
+
+    - name: change group permission
+      ansible.builtin.file:
+        dest: /opt/tomcat/tomcat
+        group: tomcat
+        recurse: yes
+
+    - name: Give insecure permissions to an existing file
+      ansible.builtin.file:
+        path: /opt/tomcat/tomcat/conf
+        owner: tomcat
+        group: tomcat
+        mode: g=rx
+        recurse: yes
+
+    - name: Recursively change ownership of a directory
+      ansible.builtin.file:
+        path: /opt/tomcat/tomcat/
+        state: directory
+        recurse: yes
+        owner: tomcat
+
+    - name: Creating tomcat.service file
+      ansible.builtin.file:
+        path: /etc/systemd/system/tomcat.service
+        state: touch
+
+    - name: Insert/Update "Match User" configuration block in /etc/ssh/sshd_config
+      ansible.builtin.blockinfile:
+        path: /etc/systemd/system/tomcat.service
+        block: |
+          [Unit]
+          Description=Apache Tomcat Web Application Container
+          After=network.targetd
+
+          [Service]
+          Type=forking
+          Environment=JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64/jre
+          Environment=CATALINA_PID=/opt/tomcat/tomcat/temp/tomcat.pid
+          Environment=CATALINA_HOME=/opt/tomcat/tomcat
+          Environment=CATALINA_BASE=/opt/tomcat/tomcat
+          Environment='CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC'
+          Environment='JAVA_OPTS=-Djava.awt.headless=true -
+          Djava.security.egd=file:/dev/./urandom'
+          ExecStart=/opt/tomcat/tomcat/bin/startup.sh
+          ExecStop=/opt/tomcat/tomcat/bin/shutdown.sh
+          User=tomcat
+          Group=tomcat
+          UMask=0007
+          RestartSec=10
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reloading apache service
+      ansible.builtin.service:
+        name: tomcat.service
+        pattern: /etc/systemd/system/tomcat.service
+        state: reloaded
+        #enabled: yes
+    - name: Starting apache service
+      ansible.builtin.service:
+        name: tomcat.service
+        pattern: /etc/systemd/system/tomcat.service
+        state: started
+
